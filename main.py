@@ -124,3 +124,11 @@ def verify_drug_product(data: DrugProductInput):
     Package Description: {data.package_description}
     """
     return {"result": classify_product(user_text, index=drug_index)}
+
+
+#Starting main
+import uvicorn
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
