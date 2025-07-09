@@ -8,6 +8,7 @@ import os
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 if not pinecone_api_key:
     raise ValueError("⚠️ PINECONE_API_KEY is not set!")
+    PINECONE_ENVIRONMENT = os.environ.get("PINECONE_ENVIRONMENT")
 
 # Initialize Pinecone and indexes
 pc = Pinecone(api_key=pinecone_api_key)
@@ -18,7 +19,11 @@ baby_index = pc.Index("fake-product-baby")
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Initialize FastAPI app
-app = FastAPI()
+app = FastAPI(
+    title="Fake Product Checker API",
+    description="API to verify whether a drug or baby product is real or fake using similarity matching.",
+    version="1.0.0"
+)
 
 
 # =========================
