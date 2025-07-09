@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
+from functools import lru_cache
 import os
 
-# Load Pinecone environment variables securely
+# ✅ Load environment variables
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_env = os.getenv("PINECONE_ENVIRONMENT")
 
@@ -13,19 +14,24 @@ if not pinecone_api_key:
 if not pinecone_env:
     raise ValueError("⚠️ PINECONE_ENVIRONMENT is not set!")
 
-# Initialize Pinecone and indexes
+# ✅ Initialize Pinecone and indexes
 pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
 drug_index = pc.Index("drug-product")
 baby_index = pc.Index("baby-product")
 
-# Initialize FastAPI app
+# ✅ Lazy load the smallest model
+@lru_cache(maxsize=1)
+def get_model():
+    return SentenceTransformer("paraphrase-MiniLM-L3-v2")
+
+# ✅ Start FastAPI app
 app = FastAPI(
     title="Fake Product Checker API",
-    description="API to verify whether a drug or baby product is real or fake using similarity matching.",
+    description="Verify if a drug or baby product is real or fake using similarity search.",
     version="1.0.0"
 )
 
-# Input schemas
+# ✅ Baby product schema
 class BabyProductInput(BaseModel):
     name: str
     brand_name: str
@@ -36,6 +42,7 @@ class BabyProductInput(BaseModel):
     package_description: str
     visible_expiriry_date: str
 
+# ✅ Drug product schema
 class DrugProductInput(BaseModel):
     drug_name: str
     price: int
@@ -51,9 +58,9 @@ class DrugProductInput(BaseModel):
     nafdac_number_present: str
     package_description: str
 
-# Classification logic with on-demand model loading
+# ✅ Shared classify function
 def classify_product(user_text, index, threshold=0.8):
-    model = SentenceTransformer("paraphrase-albert-small-v2")  # lightweight model
+    model = get_model()
     vector = model.encode(user_text).tolist()
     result = index.query(vector=vector, top_k=5, include_metadata=True)
 
@@ -66,16 +73,16 @@ def classify_product(user_text, index, threshold=0.8):
 
         if score >= threshold:
             if "fake" in text.lower():
-                reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No specific reason provided."
-                return f"❌ Product is likely FAKE (score: {score:.2f})\nReason: {reason}\nI recommend you don't use this product. Please stay safe!"
+                reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No reason provided."
+                return f"❌ Likely FAKE (score: {score:.2f})\nReason: {reason}"
             elif "real" in text.lower():
-                reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No specific reason provided."
-                return f"🎉 Product seems REAL (score: {score:.2f})\nReason: {reason}\nStay safe and shop wisely!"
+                reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No reason provided."
+                return f"✅ Looks REAL (score: {score:.2f})\nReason: {reason}"
 
     top_score = result["matches"][0]["score"]
-    return f"⚠️ Product is unfamiliar or not similar enough (max score: {top_score:.2f}).\nSorry, I can't determine if this product is real or fake. Please verify manually or check with others. Stay safe!"
+    return f"⚠️ Product is unfamiliar (score: {top_score:.2f}). Please verify manually."
 
-# API Endpoints
+# ✅ Baby endpoint
 @app.post("/verify-baby-product")
 def verify_baby_product(data: BabyProductInput):
     user_text = f"""
@@ -88,8 +95,9 @@ def verify_baby_product(data: BabyProductInput):
     Package: {data.package_description}
     Expiry Visible: {data.visible_expiriry_date}
     """
-    return {"result": classify_product(user_text, index=baby_index)}
+    return {"result": classify_product(user_text, baby_index)}
 
+# ✅ Drug endpoint
 @app.post("/verify-drug-product")
 def verify_drug_product(data: DrugProductInput):
     user_text = f"""
@@ -107,10 +115,11 @@ def verify_drug_product(data: DrugProductInput):
     NAFDAC Number Present: {data.nafdac_number_present}
     Package Description: {data.package_description}
     """
-    return {"result": classify_product(user_text, index=drug_index)}
+    return {"result": classify_product(user_text, drug_index)}
 
-# Start command for Render
+# ✅ Run it (Railway/Render will handle port env)
 import uvicorn
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
