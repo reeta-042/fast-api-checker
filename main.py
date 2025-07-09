@@ -14,7 +14,7 @@ if not pinecone_env:
     raise ValueError("⚠️ PINECONE_ENVIRONMENT is not set!")
 
 # Initialize Pinecone and indexes
-pc = Pinecone(api_key=pinecone_api_key)
+pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
 drug_index = pc.Index("fake-product-drugs")
 baby_index = pc.Index("fake-product-baby")
 
