@@ -6,9 +6,12 @@ import os
 
 # Load environment variable securely
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
+pinecone_env = os.getenv("PINECONE_ENVIRONMENT")
+
 if not pinecone_api_key:
     raise ValueError("⚠️ PINECONE_API_KEY is not set!")
-    PINECONE_ENVIRONMENT = os.environ.get("PINECONE_ENVIRONMENT")
+if not pinecone_env:
+    raise ValueError("⚠️ PINECONE_ENVIRONMENT is not set!")
 
 # Initialize Pinecone and indexes
 pc = Pinecone(api_key=pinecone_api_key)
