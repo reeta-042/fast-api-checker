@@ -1,11 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
+from sentence_transformers import SentenceTransformer
 import os
-import uvicorn
 
-# Load environment variables securely
+# Load Pinecone environment variables securely
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_env = os.getenv("PINECONE_ENVIRONMENT")
 
@@ -14,13 +13,10 @@ if not pinecone_api_key:
 if not pinecone_env:
     raise ValueError("⚠️ PINECONE_ENVIRONMENT is not set!")
 
-# Initialize Pinecone and connect to the indexes
+# Initialize Pinecone and indexes
 pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
 drug_index = pc.Index("drug-product")
 baby_index = pc.Index("baby-product")
-
-# Load lightweight embedding model (smaller size)
-model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -29,10 +25,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# =========================
-# Pydantic input schemas
-# =========================
-
+# Input schemas
 class BabyProductInput(BaseModel):
     name: str
     brand_name: str
@@ -58,11 +51,9 @@ class DrugProductInput(BaseModel):
     nafdac_number_present: str
     package_description: str
 
-# =========================
-# Classifier function
-# =========================
-
+# Classification logic with on-demand model loading
 def classify_product(user_text, index, threshold=0.8):
+    model = SentenceTransformer("paraphrase-albert-small-v2")  # lightweight model
     vector = model.encode(user_text).tolist()
     result = index.query(vector=vector, top_k=5, include_metadata=True)
 
@@ -74,19 +65,17 @@ def classify_product(user_text, index, threshold=0.8):
         text = match["metadata"]["text"]
 
         if score >= threshold:
-            reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No specific reason provided."
             if "fake" in text.lower():
+                reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No specific reason provided."
                 return f"❌ Product is likely FAKE (score: {score:.2f})\nReason: {reason}\nI recommend you don't use this product. Please stay safe!"
             elif "real" in text.lower():
+                reason = text.split("Reason:")[-1].strip() if "Reason:" in text else "No specific reason provided."
                 return f"🎉 Product seems REAL (score: {score:.2f})\nReason: {reason}\nStay safe and shop wisely!"
 
     top_score = result["matches"][0]["score"]
     return f"⚠️ Product is unfamiliar or not similar enough (max score: {top_score:.2f}).\nSorry, I can't determine if this product is real or fake. Please verify manually or check with others. Stay safe!"
 
-# =========================
-# FastAPI endpoints
-# =========================
-
+# API Endpoints
 @app.post("/verify-baby-product")
 def verify_baby_product(data: BabyProductInput):
     user_text = f"""
@@ -120,10 +109,8 @@ def verify_drug_product(data: DrugProductInput):
     """
     return {"result": classify_product(user_text, index=drug_index)}
 
-# =========================
-# Run app
-# =========================
-
+# Start command for Render
+import uvicorn
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
