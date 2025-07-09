@@ -62,7 +62,7 @@ class DrugProductInput(BaseModel):
 def classify_product(user_text, index, threshold=0.8):
     model = get_model()
     vector = model.encode(user_text).tolist()
-    result = index.query(vector=vector, top_k=5, include_metadata=True)
+    result = index.query(vector=vector, top_k=3, include_metadata=True)
 
     if not result["matches"]:
         return "⚠️ No similar product found in the database."
